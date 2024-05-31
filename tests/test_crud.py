@@ -1,20 +1,19 @@
 import pytest
-from unittest.mock import AsyncMock, patch
-from app.crud import create_todo, fetch_all, fetch_one, update_todo, remove_one, remove_all
-from app.schemas import TodoSchema, UpdateTodo
+from unittest.mock import MagicMock, patch
+from todo_fastapi.app.crud import create_todo, fetch_all, fetch_one, update_todo, remove_one, remove_all
+from todo_fastapi.app.schemas import TodoSchema, UpdateTodo
 
 
 # Test case for the create_todo function to ensure it correctly inserts a new todo item.
-@pytest.mark.asyncio
-@patch("app.crud.todo_collection")
-async def test_create_todo(mock_todo_collection):
+@patch("todo_fastapi.app.crud.db.insert_data")
+def test_create_todo(mock_todo_collection):
     # Prepare a TodoSchema object as the input for the create_todo function.
     todo = TodoSchema(title="NewTask")
     # Mock the insert_one method of the todo_collection to return the prepared TodoSchema object.
-    mock_todo_collection.insert_one = AsyncMock()
+    mock_todo_collection.insert_one = MagicMock()
     mock_todo_collection.insert_one.return_value = todo
     # Execute the create_todo function and assert that the result matches the expected model dump.
-    result = await create_todo(todo)
+    result = create_todo(todo)
     assert result == todo.model_dump()
 
 # Class to mock the async iterator behavior of MongoDB's find method.
@@ -31,65 +30,65 @@ class AsyncIteratorWrapper:
         except IndexError:
             raise StopAsyncIteration
 
+
+
 # Test case for fetch_all function to ensure it can retrieve all todo items.
-@pytest.mark.asyncio
-@patch("app.crud.todo_collection")
-async def test_fetch_all(mock_todo_collection):
-    # Prepare a TodoSchema object to simulate a database record.
-    todo = TodoSchema(title="NewTask")
-    # Mock the find method to return an async iterator over the prepared todo items.
-    mock_todo_collection.find.return_value = AsyncIteratorWrapper([todo])
+@patch("todo_fastapi.app.crud.db.fetch_data")
+def test_fetch_all(mock_fetch_data):
+    # Prepare a dictionary to simulate a database record.
+    todo_dict = {"title": "NewTask", "description": None, "completed": False}
+    # Set up MagicMock to iterate over a list of dictionaries.
+    mock_cursor = MagicMock()
+    mock_cursor.__iter__.return_value = iter([todo_dict])
+    mock_fetch_data.return_value = mock_cursor
     # Execute fetch_all and assert that the returned list matches the expected model dumps.
-    result = await fetch_all()
-    assert result == [todo.model_dump()]
+    result = fetch_all()
+
+    assert result == [todo_dict]
+
 
 # Test case for fetch_one function to ensure it can retrieve a single todo item by title.
-@pytest.mark.asyncio
-@patch("app.crud.todo_collection")
-async def test_fetch_one(mock_todo_collection):
+@patch("todo_fastapi.app.crud.db.fetch_data")
+def test_fetch_one(mock_find_one):
     # Prepare a TodoSchema object to simulate a found database record.
     todo = TodoSchema(title="NewTask")
     # Mock the find_one method to return the prepared TodoSchema object.
-    mock_todo_collection.find_one = AsyncMock()
-    mock_todo_collection.find_one.return_value = todo
+    mock_find_one.return_value = [todo.model_dump()]  # Assuming fetch_one expects a dictionary
     # Execute fetch_one with a specific title and assert the result matches the expected model dump.
-    result = await fetch_one("NewTask")
+    result = fetch_one("NewTask")
     assert result == todo.model_dump()
 
 # Test case for update_todo function to ensure it can update a todo item correctly.
-@pytest.mark.asyncio
-@patch("app.crud.todo_collection")
-async def test_update_todo(mock_todo_collection):
-    # Prepare a TodoSchema object as the original todo item.
-    todo = TodoSchema(title="NewTask")
-    # Mock the update_one method to simulate a successful update operation.
-    mock_todo_collection.update_one = AsyncMock()
-    mock_todo_collection.update_one.return_value.modified_count = 1
-    # Mock the find_one method to return the updated TodoSchema object.
-    mock_todo_collection.find_one = AsyncMock()
-    mock_todo_collection.find_one.return_value = todo
-    # Execute update_todo with a new title and assert the result matches the expected model dump.
-    result = await update_todo("NewTask", UpdateTodo(title="NewTask1"))
-    assert result == todo.model_dump()
+@patch("todo_fastapi.app.crud.db")
+def test_update_todo(mock_db):
+    # Setup
+    updated_todo_dict = {"title": "NewTask1"}
+    mock_db.update_data.return_value = MagicMock(modified_count=1)
+    mock_db.fetch_data.return_value = [updated_todo_dict]  # Return a list with one item
+    
+    # Execute the update_todo function
+    result = update_todo("NewTask", UpdateTodo(title="NewTask1"))
+    
+    # Verify that the result matches the expected model dump
+    assert result == updated_todo_dict
 
-# Test case for remove_one function to ensure it can remove a single todo item.
-@pytest.mark.asyncio
-@patch("app.crud.todo_collection")
-async def test_remove_one(mock_todo_collection):
-    # Mock the delete_one method to simulate a successful deletion operation.
-    mock_todo_collection.delete_one = AsyncMock()
-    mock_todo_collection.delete_one.return_value.deleted_count = 1
+ 
+
+@patch("todo_fastapi.app.crud.db.delete_data")
+def test_remove_one(mock_delete_data):
+    # Configure the MagicMock to return an integer representing the count of deleted documents
+    mock_delete_data.return_value = 1  # Return 1 to indicate one document was successfully deleted
+    
     # Execute remove_one with a specific title and assert that it returns True for successful deletion.
-    result = await remove_one("NewTask")
+    result = remove_one("NewTask")
     assert result == True
 
 # Test case for remove_all function to ensure it can remove all todo items.
-@pytest.mark.asyncio
-@patch("app.crud.todo_collection")
-async def test_remove_all(mock_todo_collection):
-    # Mock the delete_many method to simulate a successful deletion operation for all items.
-    mock_todo_collection.delete_many = AsyncMock()
-    mock_todo_collection.delete_many.return_value.deleted_count = 1
+@patch("todo_fastapi.app.crud.db.delete_all_data")
+def test_remove_all(mock_delete_all_data):
+    # Mock the delete_all_data method to simulate a successful deletion operation for all items.
+    mock_delete_all_data.return_value = 1
+    
     # Execute remove_all and assert that it returns True for successful deletion.
-    result = await remove_all()
+    result = remove_all()
     assert result == True

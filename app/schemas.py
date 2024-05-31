@@ -2,9 +2,9 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 class TodoSchema(BaseModel):
-    title: str = Field(...)
+    title: str
     description: Optional[str] = None
-    completed: bool = Field(default=False)
+    completed: bool = False
 
     class Config:
         schema_extra = {
